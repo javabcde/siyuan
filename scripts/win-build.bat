@@ -4,6 +4,9 @@ echo 'use ".\scripts\win-build.bat" instead of "win-build.bat"'
 echo 'Building UI'
 cd app
 call pnpm install
+if errorlevel 1 (
+    exit /b %errorlevel%
+)
 call pnpm run build
 if errorlevel 1 (
     exit /b %errorlevel%
@@ -11,9 +14,9 @@ if errorlevel 1 (
 cd ..
 
 echo 'Cleaning Builds'
-rmdir /s /q app\build 1>nul
-del /S /Q /F app\kernel 1>nul
-del /S /Q /F app\kernel-arm64 1>nul
+rmdir /S /Q app\build 1>nul
+rmdir /S /Q app\kernel 1>nul
+rmdir /S /Q app\kernel-arm64 1>nul
 
 echo 'Building Kernel'
 @REM the C compiler "gcc" is necessary https://sourceforge.net/projects/mingw-w64/files/mingw-w64/

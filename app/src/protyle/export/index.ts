@@ -12,8 +12,6 @@ import {fetchPost, fetchSyncPost} from "../../util/fetch";
 import {Dialog} from "../../dialog";
 import {replaceLocalPath} from "../../editor/rename";
 import {setStorageVal} from "../util/compatibility";
-import {isPaidUser} from "../../util/needSubscribe";
-import {getCloudURL} from "../../config/util/about";
 import {getFrontend} from "../../util/functions";
 
 const getPluginStyle = async () => {
@@ -85,7 +83,7 @@ const getSnippetCSS = () => {
     let snippetCSS = "";
     document.querySelectorAll("style").forEach((item) => {
         if (item.id.startsWith("snippet")) {
-            snippetCSS += item.innerHTML;
+            snippetCSS += item.outerHTML;
         }
     });
     return snippetCSS;
@@ -111,7 +109,6 @@ const renderPDF = async (id: string) => {
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"/>
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <link rel="stylesheet" type="text/css" id="baseStyle" href="${servePath}/stage/build/export/base.css?v=${Constants.SIYUAN_VERSION}"/>
@@ -182,8 +179,8 @@ const renderPDF = async (id: string) => {
         }
         ${await setInlineStyle(false)}
         ${await getPluginStyle()}
-        ${getSnippetCSS()}
     </style>
+    ${getSnippetCSS()}
 </head>
 <body style="-webkit-print-color-adjust: exact;">
 <div id="action">
@@ -270,7 +267,6 @@ const renderPDF = async (id: string) => {
             </div>
             <span class="fn__hr"></span>
             <input id="watermark" class="b3-switch" type="checkbox" ${localData.watermark ? "checked" : ""}>
-            <div style="display:none;font-size: 12px;margin-top: 12px;color: var(--b3-theme-on-surface);">${window.siyuan.languages._kernel[214].replaceAll("${accountServer}", getCloudURL(""))}</div>
         </label>
     </div>
     <div class="fn__flex" style="padding: 0 16px">
@@ -439,7 +435,7 @@ const renderPDF = async (id: string) => {
               codeLigatures: ${window.siyuan.config.editor.codeLigatures},
               plantUMLServePath: "${window.siyuan.config.editor.plantUMLServePath}",
               codeSyntaxHighlightLineNum: ${window.siyuan.config.editor.codeSyntaxHighlightLineNum},
-              katexMacros: JSON.stringify(${window.siyuan.config.editor.katexMacros}),
+              katexMacros: decodeURI(\`${encodeURI(window.siyuan.config.editor.katexMacros)}\`),
             }
           },
           languages: {copy:"${window.siyuan.languages.copy}"}
@@ -478,12 +474,6 @@ const renderPDF = async (id: string) => {
             refreshPreview();
         });
         const  watermarkElement = actionElement.querySelector('#watermark');
-        watermarkElement.addEventListener('change', () => {
-            if (watermarkElement.checked && ${!isPaidUser()}) {
-                watermarkElement.nextElementSibling.style.display = "";
-                watermarkElement.checked = false;
-            }
-        });
         const refreshPreview = () => {
             previewElement.innerHTML = '<div class="fn__loading" style="left:0;height: 100vh"><img width="48px" src="${servePath}/stage/loading-pure.svg"></div>'
             fetchPost("/api/export/exportPreviewHTML", {
@@ -663,7 +653,6 @@ const onExport = async (data: IWebSocketData, filePath: string, exportOption: IE
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"/>
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <link rel="stylesheet" type="text/css" id="baseStyle" href="stage/build/export/base.css?v=${Constants.SIYUAN_VERSION}"/>
@@ -676,8 +665,8 @@ const onExport = async (data: IWebSocketData, filePath: string, exportOption: IE
         body {font-family: var(--b3-font-family);background-color: var(--b3-theme-background);color: var(--b3-theme-on-background)}
         ${await setInlineStyle(false)}
         ${await getPluginStyle()}
-        ${getSnippetCSS()}
     </style>
+    ${getSnippetCSS()}
 </head>
 <body>
 <div class="${["htmlmd", "word"].includes(exportOption.type) ? "b3-typography" : "protyle-wysiwyg" + (window.siyuan.config.editor.displayBookmarkIcon ? " protyle-wysiwyg--attr" : "")}" 
@@ -696,7 +685,7 @@ id="preview">${data.data.content}</div>
           codeLigatures: ${window.siyuan.config.editor.codeLigatures},
           plantUMLServePath: "${window.siyuan.config.editor.plantUMLServePath}",
           codeSyntaxHighlightLineNum: ${window.siyuan.config.editor.codeSyntaxHighlightLineNum},
-          katexMacros: JSON.stringify(${window.siyuan.config.editor.katexMacros}),
+          katexMacros: decodeURI(\`${encodeURI(window.siyuan.config.editor.katexMacros)}\`),
         }
       },
       languages: {copy:"${window.siyuan.languages.copy}"}

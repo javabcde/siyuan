@@ -2,7 +2,7 @@ import {
     hasClosestBlock,
     hasClosestByAttribute,
     hasClosestByClassName, hasClosestByTag,
-    hasTopClosestByClassName
+    hasTopClosestByClassName, isInEmbedBlock
 } from "../protyle/util/hasClosest";
 import {MenuItem} from "./Menu";
 import {focusBlock, focusByRange, focusByWbr, getEditorRange, selectAll,} from "../protyle/util/selection";
@@ -66,6 +66,7 @@ import {showMessage} from "../dialog/message";
 import {img3115} from "../boot/compatibleVersion";
 import {hideTooltip} from "../dialog/tooltip";
 import {clearSelect} from "../protyle/util/clearSelect";
+import {scrollCenter} from "../util/highlightById";
 
 const renderAssetList = (element: Element, k: string, position: IPosition, exts: string[] = []) => {
     fetchPost("/api/search/searchAsset", {
@@ -620,7 +621,7 @@ export const refMenu = (protyle: IProtyle, element: HTMLElement) => {
             }
         });
         window.siyuan.menus.menu.append(new MenuItem({
-            id: "iconRefresh",
+            id: "turnInto",
             label: window.siyuan.languages.turnInto,
             icon: "iconRefresh",
             submenu
@@ -1020,7 +1021,7 @@ export const zoomOut = (options: {
                 }
                 focusBlock(showElement);
                 const resizeObserver = new ResizeObserver(() => {
-                    showElement.scrollIntoView();
+                    scrollCenter(options.protyle, focusElement, true);
                 });
                 resizeObserver.observe(options.protyle.wysiwyg.element);
                 setTimeout(() => {
@@ -2142,7 +2143,7 @@ export const tableMenu = (protyle: IProtyle, nodeElement: Element, cellElement: 
                     if (prueTrElement) {
                         const tbodyElement = nodeElement.querySelector("tbody");
                         const theadElement = nodeElement.querySelector("thead");
-                        while (!prueTrElement.isSameNode(theadElement.lastElementChild)) {
+                        while (prueTrElement !== theadElement.lastElementChild) {
                             tbodyElement.insertAdjacentElement("afterbegin", theadElement.lastElementChild);
                         }
                     }
@@ -2153,14 +2154,14 @@ export const tableMenu = (protyle: IProtyle, nodeElement: Element, cellElement: 
         });
     }
     const thMatchElement = nodeElement.querySelectorAll("col")[colIndex];
-    if (thMatchElement.style.width || thMatchElement.style.minWidth) {
+    if (thMatchElement.style.width || thMatchElement.style.minWidth !== "60px") {
         otherMenus.push({
             id: "useDefaultWidth",
             label: window.siyuan.languages.useDefaultWidth,
             click: () => {
                 const html = nodeElement.outerHTML;
                 thMatchElement.style.width = "";
-                thMatchElement.style.minWidth = "";
+                thMatchElement.style.minWidth = "60px";
                 updateTransaction(protyle, nodeElement.getAttribute("data-node-id"), nodeElement.outerHTML, html);
             }
         });
@@ -2432,18 +2433,35 @@ export const tableMenu = (protyle: IProtyle, nodeElement: Element, cellElement: 
     return {menus, removeMenus, insertMenus, otherMenus, other2Menus};
 };
 
-export const setFold = (protyle: IProtyle, nodeElement: Element, isOpen?: boolean, isRemove?: boolean, addLoading = true) => {
+export const setFoldById = (data: {
+    id: string,
+    currentNodeID: string,
+}, protyle: IProtyle) => {
+    Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${data.id}"]`)).find((item: Element) => {
+        if (!isInEmbedBlock(item)) {
+            const operations = setFold(protyle, item, true, false, true, true);
+            operations.doOperations[0].context = {
+                focusId: data.currentNodeID,
+            };
+            transaction(protyle, operations.doOperations, operations.undoOperations);
+            return true;
+        }
+    });
+};
+
+export const setFold = (protyle: IProtyle, nodeElement: Element, isOpen?: boolean,
+                        isRemove?: boolean, addLoading = true, getOperations = false) => {
     if (nodeElement.getAttribute("data-type") === "NodeListItem" && nodeElement.childElementCount < 4) {
         // 没有子列表或多个块的列表项不进行折叠
-        return -1;
+        return {fold: -1};
     }
     if (nodeElement.getAttribute("data-type") === "NodeThematicBreak") {
-        return -1;
+        return {fold: -1};
     }
     const hasFold = nodeElement.getAttribute("fold") === "1";
     if (hasFold) {
         if (typeof isOpen === "boolean" && !isOpen) {
-            return -1;
+            return {fold: -1};
         }
         nodeElement.removeAttribute("fold");
         // https://github.com/siyuan-note/siyuan/issues/4411
@@ -2452,7 +2470,7 @@ export const setFold = (protyle: IProtyle, nodeElement: Element, isOpen?: boolea
         });
     } else {
         if (typeof isOpen === "boolean" && isOpen) {
-            return -1;
+            return {fold: -1};
         }
         nodeElement.setAttribute("fold", "1");
         // 光标在子列表中，再次 focus 段尾的时候不会变 https://ld246.com/article/1647099132461
@@ -2467,41 +2485,49 @@ export const setFold = (protyle: IProtyle, nodeElement: Element, isOpen?: boolea
         clearSelect(["img", "av"], nodeElement);
     }
     const id = nodeElement.getAttribute("data-node-id");
+    const doOperations: IOperation[] = [];
+    const undoOperations: IOperation[] = [];
     if (nodeElement.getAttribute("data-type") === "NodeHeading") {
         if (hasFold) {
             if (addLoading) {
                 nodeElement.insertAdjacentHTML("beforeend", '<div spin="1" style="text-align: center"><img width="24px" height="24px" src="/stage/loading-pure.svg"></div>');
             }
-            transaction(protyle, [{
+            doOperations.push({
                 action: "unfoldHeading",
                 id,
                 data: isRemove ? "remove" : undefined,
-            }], [{
+            });
+            undoOperations.push({
                 action: "foldHeading",
                 id
-            }]);
+            });
         } else {
-            transaction(protyle, [{
+            doOperations.push({
                 action: "foldHeading",
                 id
-            }], [{
+            });
+            undoOperations.push({
                 action: "unfoldHeading",
                 id
-            }]);
+            });
             removeFoldHeading(nodeElement);
         }
     } else {
-        transaction(protyle, [{
+        doOperations.push({
             action: "setAttrs",
             id,
             data: JSON.stringify({fold: hasFold ? "" : "1"})
-        }], [{
+        });
+        undoOperations.push({
             action: "setAttrs",
             id,
             data: JSON.stringify({fold: hasFold ? "1" : ""})
-        }]);
+        });
+    }
+    if (!getOperations) {
+        transaction(protyle, doOperations, undoOperations);
     }
     // 折叠后，防止滚动条滚动后调用 get 请求 https://github.com/siyuan-note/siyuan/issues/2248
     preventScroll(protyle);
-    return !hasFold ? 1 : 0;
+    return {fold: !hasFold ? 1 : 0, undoOperations, doOperations};
 };
